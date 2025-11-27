@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title class = "center"> NYC Subway Delays</title>
+
+    <style>
+        title{
+            font-size: 3em;
+        }
+        h1{
+            font-size: 3em;
+        }
+        text{
+            font-family: "Times New Roman", Times, serif;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Subway Delays</h1>
+    <p id = "results"></p>
+    <script>
+        async function loadDelays() {
+            try{
+                // Fetch data from FLASK API
+                const response = await fetch('/api/delays');
+
+                // If data cannot be fetched 
+                if(!response.ok){
+                    throw new Error('Failed to fetch data');                    
+                }
+
+                const delays = await response.json();
+
+                // If no delays
+                if (delays.length == 0){
+                    document.getElementById("results").innerHTML = "No delays found.";
+                    return;
+                }
+
+                let text = ''
+                delays.forEach(delay =>{
+                    text += `Train ${delay.train_line}: ${delay.alert_message} <br><br>`
+                })
+
+                document.getElementById("results").innerHTML = text;
+            }
+
+            catch(error){
+                console.error('Error loading delays: ', error)
+                let error_mess = "Cannot retrieve from database"
+                document.getElementById("results").innerHTML = error_mess;
+            }
+            
+        }
+
+        // Call the function to show delays
+        loadDelays();
+
+        // Refreshes every 30 seconds
+        setInterval(loadDelays, 30000)
+        
+
+    </script>
+</body>
+</html>
