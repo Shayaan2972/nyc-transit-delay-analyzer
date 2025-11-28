@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> NYC Subway Delays</title>
+
+    <style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+        color: #333;
+    }
+    
+    h1 {
+        text-align: center;
+        color: white;
+        font-size: 3em;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    h2 {
+        color: white;
+        font-size: 2em;
+        margin: 40px 0 20px 0;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    }
+    
+    #loading-delays, #loading-stats {
+        text-align: center;
+        color: white;
+        padding: 20px;
+        font-size: 1.1em;
+    }
+    
+    .delay-card {
+        background: white;
+        padding: 20px;
+        margin: 15px 0;
+        border-radius: 10px;
+        border-left: 5px solid #e53e3e;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .delay-card div:first-child {
+        font-weight: bold;
+        font-size: 1.3em;
+        color: #e53e3e;
+        margin-bottom: 8px;
+    }
+    
+    .stat-card {
+        background: white;
+        padding: 20px;
+        margin: 12px 0;
+        border-radius: 10px;
+        border-left: 5px solid #3182ce;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .stat-card div:first-child {
+        font-weight: bold;
+        font-size: 1.2em;
+        color: #3182ce;
+    }
+    
+    .stat-card div:last-child {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #2d3748;
+    }
+    
+    #last-updated {
+        text-align: center;
+        color: white;
+        margin-top: 40px;
+        font-size: 0.9em;
+        opacity: 0.9;
+    }
+    
+    </style>
+
+</head>
+<body>
+    <h1>🚇 Subway Delays</h1>
+
+    <!-- The Loading Section -->
+    <div id="loading-delays">Loading current delays...</div>
+    <p id="results"></p>
+
+    <!-- The Stats Section -->
+    <h2>Delay Statistics (Last 7 Days)</h2>
+    <div id="loading-stats">Loading current delays...</div>
+    <p id="stats"></p>
+
+    <!-- The Updated Section -->
+    <div id="last-updated"></div>
+
+
+    <script>
+        async function loadDelays() {
+            const loadingEl = document.getElementById('loading-delays');
+            const resultsEl = document.getElementById('results');
+            
+            try{
+
+                // Fetch data from FLASK API
+                const response = await fetch('/api/delays');
+
+                // If data cannot be fetched 
+                if(!response.ok){
+                    throw new Error('Failed to fetch data');                    
+                }
+
+                const delays = await response.json();
+
+                loadingEl.style.display = 'none';
+                resultsEl.innerHTML = '';
+
+                // If no delays
+                if (delays.length == 0){
+                    resultsEl.innerHTML = "No delays found.";
+                    return;
+                }
+
+                delays.forEach(delay =>{
+                    const card = document.createElement('div');
+                    card.className = 'delay-card';
+                    card.innerHTML = `
+                        <div>${delay.train_line} Train</div>
+                        <div>${delay.alert_message}</div>
+                    `;
+                    resultsEl.appendChild(card);
+                });
+
+                updateTimeStamp();
+            }
+            
+            catch(error){
+                console.error('Error loading delays: ', error)
+                loadingEl.style.display = 'none';
+                resultsEl.innerHTML = 'Cannot retrieve entry data.';
+            }
+            
+        }
+
+        async function loadStats() {
+            const loadingEl = document.getElementById('loading-stats');
+            const statsEl = document.getElementById('stats');
+            
+            try{
+                // Fetch data from FLASK API
+                const response = await fetch('/api/stats/worst-lines');
+
+                // If data cannot be fetched 
+                if(!response.ok){
+                    throw new Error('Failed to fetch data');                    
+                }
+
+                const data = await response.json();
+
+
+                loadingEl.style.display = 'none';
+                statsEl.innerHTML = '';
+
+                // If no delays
+                if (data.length == 0){
+                    document.getElementById("stats").innerHTML = "No statistics available yet. ";
+                    return;
+                }
+
+                data.forEach(stat =>{
+                    const card = document.createElement('div');
+                    card.className = 'stat-card';
+                    card.innerHTML = `
+                        <div>${stat.train_line} Train</div>
+                        <div>${stat.delay_type}</div>
+                    `;
+                    statsEl.appendChild(card);
+                });
+            }
+
+            catch(error){
+                console.error('Error loading statistics: ', error)
+                loadingEl.style.display = 'none';
+                statsEl.innerHTML = 'Statistics could not be loaded in.'
+            }
+            
+        }
+
+        function updateTimeStamp(){
+            const now = new Date();
+
+            const timeString = now.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+
+            document.getElementById('last-updated').textContent = "Last updated: " + timeString;
+        }
+
+        // Call the functions to show delays and statistics
+        loadDelays();
+        loadStats();
+
+        // Refreshes every 30 seconds
+        setInterval(loadDelays, 30000);
+        setInterval(loadStats, 30000);
+        
+
+    </script>
+</body>
+</html>
