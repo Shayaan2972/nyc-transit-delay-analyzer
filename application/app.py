@@ -32,31 +32,54 @@ def fetch_data_from_api(url, headers=None):
         print(f"Error fetching from API: {e}")
         return None
     
+
 def parse_data(data):
     parsed_delays = []
+    entities = data.get('entity', [])
+    print (f"Found {len(entities)} entities in API response")
 
-    for entity in data.get('entity', []):
-        alert = entity['alert']
-        train_line = alert['informed_entity'][0]['route_id']
-        alert_message = alert['header_text']['translation'][0]['text']
-        alert_type = alert['transit_realtime.mercury_alert']['alert_type']
-        created = alert['transit_realtime.mercury_alert']['created_at']
-        updated = alert['transit_realtime.mercury_alert']['updated_at']
+    for i, entity in enumerate(entities):
+        try:
+            alert = entity['alert']
 
-        parsed_delays.append({
-            'train_line': train_line,
-            'alert_message': alert_message,
-            'alert_type': alert_type,
-            'created': created,
-            'updated': updated
-        })
+            # Find train lines with a route id
+            train_line = None
+            for informed in alert['informed_entity']:
+                if 'route_id' in informed:
+                    train_line = informed['route_id']
+                    break
 
+            # If route id not found
+            if not train_line:
+                print(f"Skipping entity {i}: No route_id found")
+                continue
+
+            alert_message = alert['header_text']['translation'][0]['text']
+            alert_type = alert['transit_realtime.mercury_alert']['alert_type']
+            created = alert['transit_realtime.mercury_alert']['created_at']
+            updated = alert['transit_realtime.mercury_alert']['updated_at']
+
+            parsed_delays.append({
+                'train_line': train_line,
+                'alert_message': alert_message,
+                'alert_type': alert_type,
+                'created': created,
+                'updated': updated
+            })
+
+        except KeyError as e:
+            print(f"KeyError parsing entity {i}: missing {e}")
+            continue
+        except Exception as e:
+            print(f"Error parsing entity {i}: {e}")
+            continue
+    
+    print(f"Successfully parsed {len(parsed_delays)} delays")
     return parsed_delays
 
 def insert_data_into_db(conn, data):
     try:
-        cursor = conn.cursor()
-
+        cursor = conn.cursor() 
         inserted_count = 0
 
         for delay in data:
@@ -66,23 +89,25 @@ def insert_data_into_db(conn, data):
             ON CONFLICT (train_line, alert_message, created) DO NOTHING
             """
 
-        cursor.execute(query, (
-            delay['train_line'],
-            delay ['alert_message'],
-            delay ['alert_type'],
-            delay['created'], 
-            delay['updated']))
-        inserted_count += 1
+            cursor.execute(query, (
+                delay['train_line'],
+                delay ['alert_message'],
+                delay ['alert_type'],
+                delay['created'], 
+                delay['updated']))
+        
+            if cursor.rowcount > 0:
+                inserted_count += 1
 
         conn.commit()
         print(f"Inserted {inserted_count} records")
+
     except Exception as e:
-        print(f"Error fetching from API: {e}")
+        print(f"Error inserting into databse: {e}")
         conn.rollback()
     finally:
         cursor.close()
     
-
 # Main function
 def main():
     url = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json"
